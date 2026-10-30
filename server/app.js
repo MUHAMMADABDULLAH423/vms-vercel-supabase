@@ -1,0 +1,174 @@
+// Shared Express API for the Vercel + Supabase VMS.
+// Used both by server/server.js (local dev) and api/index.js (Vercel serverless).
+// The browser NEVER talks to Supabase directly: only this API uses the
+// SERVICE ROLE key, so RLS can stay locked down on the table.
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+
+const CATEGORIES = ['GENERAL VISITOR', 'VENDOR / SUPPLIER', 'DELIVERY', 'EMPLOYEE / INTER-UNIT', 'CONTRACTOR / SERVICE'];
+const REASONS = ['Meeting Visitor (General)', 'Conference / Seminar', 'Goods Delivery', 'Internship Candidate', 'Employee Guest', 'Maintenance or Service', 'Job Interview', 'Third Party Contractor/Service Provider', 'Lunch Delivery (at Reception)', 'Civil Construction Work'];
+const BUCKET = 'visitor-photos';
+
+// Pakistan time (UTC+5, no daylight saving) — used for "today" everywhere.
+function pktDate(d = new Date()) {
+  return new Date(d.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+function nowIso() { return new Date().toISOString(); }
+
+function createApp(supabase) {
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+  function normaliseReason(body) {
+    if (body.reason === 'OTHER') {
+      if (!body.other_reason || !body.other_reason.trim()) return { error: 'Please type the reason when Other is selected.' };
+      return { reason: body.other_reason.trim() };
+    }
+    return { reason: (body.reason || '').trim() || null };
+  }
+  async function uploadPhoto(file) {
+    if (!file) return null;
+    const ext = path.extname(file.originalname || '').toLowerCase() || '.jpg';
+    const name = `photos/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+    const { error } = await supabase.storage.from(BUCKET).upload(name, file.buffer, { contentType: file.mimetype || 'image/jpeg', upsert: false });
+    if (error) throw new Error('Photo upload failed: ' + error.message);
+    return supabase.storage.from(BUCKET).getPublicUrl(name).data.publicUrl;
+  }
+
+  app.get('/api/health', (_req, res) => res.json({ ok: true, today_pkt: pktDate(), supabase_configured: Boolean(supabase) }));
+
+  // Visitor Form: still-inside AND visit_date = today (Pakistan).
+  app.get('/api/visitors/inside-today', async (_req, res) => {
+    const { data, error } = await supabase.from('visitors').select('*').is('time_out', null).eq('visit_date', pktDate()).order('time_in', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
+
+  // Summary: ALL, with optional From/To date-between filter (by visit_date) + search.
+  app.get('/api/visitors/all', async (req, res) => {
+    const { from, to, q } = req.query;
+    let query = supabase.from('visitors').select('*');
+    if (from) query = query.gte('visit_date', from);
+    if (to) query = query.lte('visit_date', to);
+    if (q) {
+      const like = `%${q.replace(/[%_]/g, '')}%`;
+      query = query.or(`person_name.ilike.${like},emp_code_cnic.ilike.${like},visitor_card_no.ilike.${like},coming_from.ilike.${like}`);
+    }
+    const { data, error } = await query.order('visit_date', { ascending: false }).order('time_in', { ascending: false });
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
+
+  app.get('/api/visitors/lookup', async (req, res) => {
+    const code = (req.query.code || '').trim();
+    if (!code) return res.json(null);
+    const { data, error } = await supabase.from('visitors').select('*').eq('emp_code_cnic', code).order('id', { ascending: false }).limit(1).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data || null);
+  });
+
+  app.get('/api/suggestions', async (_req, res) => {
+    const { data, error } = await supabase.from('visitors').select('person_to_contact,department');
+    if (error) return res.status(500).json({ error: error.message });
+    const uniq = (arr) => [...new Set(arr.filter(Boolean))].sort();
+    res.json({ persons: uniq(data.map(r => r.person_to_contact)), departments: uniq(data.map(r => r.department)) });
+  });
+
+  app.get('/api/dashboard', async (_req, res) => {
+    const today = pktDate();
+    const countWhere = async (fn) => {
+      const { count, error } = await fn(supabase.from('visitors').select('*', { count: 'exact', head: true }));
+      if (error) throw new Error(error.message);
+      return count || 0;
+    };
+    try {
+      const [total, out, todayIn, todayOut] = await Promise.all([
+        countWhere(q => q),
+        countWhere(q => q.not('time_out', 'is', null)),
+        countWhere(q => q.eq('visit_date', today)),
+        countWhere(q => q.eq('visit_date', today).not('time_out', 'is', null)),
+      ]);
+      const { data } = await supabase.from('visitors').select('department,visitor_category');
+      const group = (key) => {
+        const m = new Map();
+        (data || []).forEach(r => { const k = r[key] || '(blank)'; m.set(k, (m.get(k) || 0) + 1); });
+        return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
+      };
+      res.json({ total_check_in: total, total_check_out: out, balance: total - out, today_check_in: todayIn, today_check_out: todayOut, by_department: group('department'), by_category: group('visitor_category'), today_pkt: today });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.get('/api/visitors/:id', async (req, res) => {
+    const { data, error } = await supabase.from('visitors').select('*').eq('id', req.params.id).maybeSingle();
+    if (error) return res.status(500).json({ error: error.message });
+    if (!data) return res.status(404).json({ error: 'Not found' });
+    res.json(data);
+  });
+
+  app.post('/api/visitors', upload.single('photo'), async (req, res) => {
+    const b = req.body;
+    if (!CATEGORIES.includes(b.visitor_category)) return res.status(400).json({ error: 'Please select a valid Visitor Category.' });
+    if (!b.person_name || !b.person_name.trim()) return res.status(400).json({ error: 'Person Name is required.' });
+    const { reason, error } = normaliseReason(b);
+    if (error) return res.status(400).json({ error });
+    try {
+      const photoPath = req.file ? await uploadPhoto(req.file) : (b.previous_photo_path || null);
+      const { data, error: dbErr } = await supabase.from('visitors').insert({
+        visit_date: b.visit_date || pktDate(), visitor_category: b.visitor_category,
+        visitor_card_no: b.visitor_card_no || null, emp_code_cnic: b.emp_code_cnic || null,
+        person_name: b.person_name.trim(), mobile_no: b.mobile_no || null, coming_from: b.coming_from || null,
+        reason, person_to_contact: b.person_to_contact || null, department: b.department || null,
+        time_in: b.time_in || nowIso(), time_out: null, photo_path: photoPath, created_on: nowIso(),
+      }).select().single();
+      if (dbErr) return res.status(500).json({ error: dbErr.message });
+      res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.put('/api/visitors/:id', upload.single('photo'), async (req, res) => {
+    const { data: old, error: getErr } = await supabase.from('visitors').select('*').eq('id', req.params.id).maybeSingle();
+    if (getErr) return res.status(500).json({ error: getErr.message });
+    if (!old) return res.status(404).json({ error: 'Not found' });
+    const b = req.body;
+    if (!CATEGORIES.includes(b.visitor_category)) return res.status(400).json({ error: 'Please select a valid Visitor Category.' });
+    if (!b.person_name || !b.person_name.trim()) return res.status(400).json({ error: 'Person Name is required.' });
+    const { reason, error } = normaliseReason(b);
+    if (error) return res.status(400).json({ error });
+    try {
+      // Edit: Time In / Time Out preserved, auto-fill NOT applied in edit mode.
+      const photoPath = req.file ? await uploadPhoto(req.file) : old.photo_path;
+      const { data, error: dbErr } = await supabase.from('visitors').update({
+        visit_date: b.visit_date || old.visit_date, visitor_category: b.visitor_category,
+        visitor_card_no: b.visitor_card_no || null, emp_code_cnic: b.emp_code_cnic || null,
+        person_name: b.person_name.trim(), mobile_no: b.mobile_no || null, coming_from: b.coming_from || null,
+        reason, person_to_contact: b.person_to_contact || null, department: b.department || null, photo_path: photoPath,
+      }).eq('id', req.params.id).select().single();
+      if (dbErr) return res.status(500).json({ error: dbErr.message });
+      res.json(data);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post('/api/visitors/:id/outstamp', async (req, res) => {
+    const { data: old, error: getErr } = await supabase.from('visitors').select('*').eq('id', req.params.id).maybeSingle();
+    if (getErr) return res.status(500).json({ error: getErr.message });
+    if (!old) return res.status(404).json({ error: 'Not found' });
+    if (old.time_out) return res.json(old);
+    const { data, error } = await supabase.from('visitors').update({ time_out: nowIso() }).eq('id', req.params.id).select().single();
+    if (error) return res.status(500).json({ error: error.message });
+    res.json(data);
+  });
+
+  app.delete('/api/visitors/:id', async (req, res) => {
+    const { error } = await supabase.from('visitors').delete().eq('id', req.params.id);
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ ok: true });
+  });
+
+  return app;
+}
+
+module.exports = { createApp, pktDate };
