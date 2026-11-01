@@ -163,8 +163,19 @@ function createApp(supabase) {
   });
 
   app.delete('/api/visitors/:id', async (req, res) => {
+    const { data: row } = await supabase.from('visitors').select('photo_path').eq('id', req.params.id).maybeSingle();
     const { error } = await supabase.from('visitors').delete().eq('id', req.params.id);
     if (error) return res.status(500).json({ error: error.message });
+    // Free the storage space too: a deleted row's photo file must not linger
+    // in the bucket, or deleting rows would never shrink usage.
+    if (row && row.photo_path) {
+      const marker = `/visitor-photos/`;
+      const idx = row.photo_path.indexOf(marker);
+      if (idx >= 0) {
+        const filePath = decodeURIComponent(row.photo_path.slice(idx + marker.length));
+        await supabase.storage.from(BUCKET).remove([filePath]);
+      }
+    }
     res.json({ ok: true });
   });
 

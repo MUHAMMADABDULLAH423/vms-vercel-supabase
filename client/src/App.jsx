@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { jsPDF } from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const CATEGORIES = ['GENERAL VISITOR', 'VENDOR / SUPPLIER', 'DELIVERY', 'EMPLOYEE / INTER-UNIT', 'CONTRACTOR / SERVICE']
 const REASONS = ['Meeting Visitor (General)', 'Conference / Seminar', 'Goods Delivery', 'Internship Candidate', 'Employee Guest', 'Maintenance or Service', 'Job Interview', 'Third Party Contractor/Service Provider', 'Lunch Delivery (at Reception)', 'Civil Construction Work']
@@ -34,6 +36,8 @@ export default function App() {
   const [cameraOn, setCameraOn] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const cameraAttemptRef = useRef(false)
+  const photoBoxRef = useRef(null)
 
   const loadInside = async () => setInsideToday(await (await fetch('/api/visitors/inside-today')).json())
   const loadAll = async (f = from, t = to, query = q) => {
@@ -51,7 +55,7 @@ export default function App() {
     if (page === 'dashboard' || page === 'home') loadDash()
   }, [page])
 
-  const go = (p) => { setMsg(''); setNotice(''); setPage(p) }
+  const go = (p) => { if (page === 'create' && p !== 'create') stopCamera(); setMsg(''); setNotice(''); setPage(p) }
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const stopCamera = () => {
@@ -59,12 +63,27 @@ export default function App() {
     streamRef.current = null; setCameraOn(false)
   }
   const openCamera = async () => {
+    if (streamRef.current) { setCameraOn(true); return }
     try {
       const s = await navigator.mediaDevices.getUserMedia({ video: true })
       streamRef.current = s; setCameraOn(true)
       setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = s }, 50)
-    } catch { setMsg('Camera not available on this device/browser. Please use file upload instead.') }
+    } catch { setMsg('Camera not available on this device/browser, or permission was denied. Please use file upload instead, or tap Open Camera to try again.') }
   }
+  // Camera goes live automatically when the Create Visitor form opens
+  // (APEX-style: the live preview is already on screen, no Open Camera tap).
+  // The browser asks for camera permission once; if it is denied, the
+  // file-upload fallback below stays available.
+  useEffect(() => {
+    if (page === 'create' && !editingId && !cameraAttemptRef.current) {
+      cameraAttemptRef.current = true
+      openCamera()
+    }
+  }, [page, editingId])
+  // Today's date (Pakistan) is picked automatically on a fresh create form.
+  useEffect(() => {
+    if (page === 'create' && !editingId) setForm(f => ({ ...f, visit_date: pktToday() }))
+  }, [page, editingId])
   const capturePhoto = () => {
     const v = videoRef.current; if (!v) return
     const c = document.createElement('canvas'); c.width = v.videoWidth || 640; c.height = v.videoHeight || 480
@@ -101,7 +120,7 @@ export default function App() {
     setNotice(`Previous visit found for ${code}. Details filled from the last visit (new date/time). All fields are editable.${row.photo_path ? ' Previous photo will be reused unless you capture/upload a new one.' : ''}`)
   }
 
-  const startCreate = () => { setForm(emptyForm()); setEditingId(null); setPhotoFile(null); setPhotoPreview(''); setNotice(''); go('create') }
+  const startCreate = () => { setForm(emptyForm()); setEditingId(null); setPhotoFile(null); setPhotoPreview(''); setNotice(''); cameraAttemptRef.current = false; go('create') }
   const startEdit = async (id) => {
     const row = await (await fetch('/api/visitors/' + id)).json()
     const nf = emptyForm()
@@ -119,6 +138,37 @@ export default function App() {
     await fetch(`/api/visitors/${id}/outstamp`, { method: 'POST' })
     setMsg(`${name} stamped out.`); loadInside()
   }
+  const deleteVisitor = async (id, name) => {
+    if (!window.confirm(`Delete the record for ${name}? This cannot be undone. If it had a photo, the photo file is deleted too.`)) return
+    const res = await fetch(`/api/visitors/${id}`, { method: 'DELETE' })
+    if (!res.ok) return setMsg('Could not delete that record.')
+    setMsg(`Record for ${name} deleted.`)
+    if (page === 'summary') loadAll(); else loadInside()
+  }
+  const downloadCsv = () => {
+    if (!allVisitors.length) return setMsg('No rows to download. Apply a filter first, or clear it to download everything.')
+    const cols = ['Date', 'Category', 'Card No.', 'Emp Code / CNIC', 'Person Name', 'Mobile', 'Coming From', 'Reason', 'Person To Contact', 'Department', 'Time In', 'Time Out']
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const lines = [cols.map(esc).join(','), ...allVisitors.map(r => [r.visit_date, r.visitor_category, r.visitor_card_no, r.emp_code_cnic, r.person_name, r.mobile_no, r.coming_from, r.reason, r.person_to_contact, r.department, fmtTime(r.time_in), fmtTime(r.time_out)].map(esc).join(','))]
+    const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `visitors-summary-${pktToday()}.csv`; a.click(); URL.revokeObjectURL(a.href)
+    setMsg(`Excel file downloaded: ${allVisitors.length} rows (the current Summary filter).`)
+  }
+  const downloadPdf = () => {
+    if (!allVisitors.length) return setMsg('No rows to download. Apply a filter first, or clear it to download everything.')
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+    doc.setFontSize(16); doc.text('Visitor Summary', 40, 36)
+    doc.setFontSize(10); doc.text(`Filter: ${from || 'all dates'} to ${to || 'all dates'}  ·  Rows: ${allVisitors.length}  ·  Generated: ${pktToday()} (Pakistan)  ·  Photos are not included in the PDF — use the Excel download for the full list.`, 40, 54)
+    autoTable(doc, {
+      startY: 66,
+      head: [['Date', 'Category', 'Card No.', 'Emp Code / CNIC', 'Person Name', 'Mobile', 'Coming From', 'Reason', 'Person To Contact', 'Department', 'Time In', 'Time Out']],
+      body: allVisitors.map(r => [r.visit_date, r.visitor_category, r.visitor_card_no || '', r.emp_code_cnic || '', r.person_name, r.mobile_no || '', r.coming_from || '', r.reason || '', r.person_to_contact || '', r.department || '', fmtTime(r.time_in), fmtTime(r.time_out)]),
+      styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+      headStyles: { fillColor: [15, 23, 42] },
+    })
+    doc.save(`visitors-summary-${pktToday()}.pdf`)
+    setMsg(`PDF downloaded: ${allVisitors.length} rows (the current Summary filter).`)
+  }
   const submitForm = async (e) => {
     e.preventDefault(); setMsg('')
     if (!form.visitor_category) return setMsg('Please select a Visitor Category.')
@@ -132,6 +182,7 @@ export default function App() {
     const data = await res.json()
     if (!res.ok) return setMsg(data.error || 'Could not save. Please check the form.')
     setMsg(editingId ? 'Row updated.' : 'Visitor created.')
+    stopCamera()
     await loadSuggest(); go('form')
   }
 
@@ -143,15 +194,16 @@ export default function App() {
         <div className="bar-track"><div className="bar-fill" style={{ width: `${(i.n / max) * 100}%` }} /></div>
         <span className="bar-n">{i.n}</span></div>))}</div>
   }
-  const table = (rows, withActions) => (
+  const table = (rows, actionsMode) => (
     <div className="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Category</th><th>Card No.</th><th>Emp Code / CNIC</th><th>Person Name</th><th>Mobile</th><th>Coming From</th><th>Reason</th><th>Person To Contact</th><th>Department</th><th>Time In</th><th>Time Out</th><th>Photo</th>{withActions && <th>Action</th>}</tr></thead>
-      <tbody>{rows.length === 0 ? <tr><td colSpan={withActions ? 14 : 13} className="empty">No records found.</td></tr> : rows.map(r => (
+      <thead><tr><th>Date</th><th>Category</th><th>Card No.</th><th>Emp Code / CNIC</th><th>Person Name</th><th>Mobile</th><th>Coming From</th><th>Reason</th><th>Person To Contact</th><th>Department</th><th>Time In</th><th>Time Out</th><th>Photo</th>{actionsMode && <th>Action</th>}</tr></thead>
+      <tbody>{rows.length === 0 ? <tr><td colSpan={actionsMode ? 14 : 13} className="empty">No records found.</td></tr> : rows.map(r => (
         <tr key={r.id}><td>{r.visit_date}</td><td>{r.visitor_category}</td><td>{r.visitor_card_no || '—'}</td><td>{r.emp_code_cnic || '—'}</td><td>{r.person_name}</td><td>{r.mobile_no || '—'}</td><td>{r.coming_from || '—'}</td><td>{r.reason || '—'}</td><td>{r.person_to_contact || '—'}</td><td>{r.department || '—'}</td><td>{fmtTime(r.time_in)}</td><td>{fmtTime(r.time_out)}</td>
           <td>{r.photo_path ? <img src={r.photo_path} alt="" className="thumb" /> : '—'}</td>
-          {withActions && <td className="actions">
-            {!r.time_out && <button className="btn small" onClick={() => outStamp(r.id, r.person_name)}>OutStamp</button>}
-            <button className="btn small ghost" onClick={() => startEdit(r.id)}>Edit</button></td>}</tr>))}</tbody>
+          {actionsMode && <td className="actions">
+            {actionsMode === 'form' && !r.time_out && <button className="btn small" onClick={() => outStamp(r.id, r.person_name)}>OutStamp</button>}
+            {actionsMode === 'form' && <button className="btn small ghost" onClick={() => startEdit(r.id)}>Edit</button>}
+            <button className="btn small ghost danger" onClick={() => deleteVisitor(r.id, r.person_name)}>Delete</button></td>}</tr>))}</tbody>
     </table></div>
   )
 
@@ -163,13 +215,13 @@ export default function App() {
         <button className={page === 'form' || page === 'create' ? 'active' : ''} onClick={() => go('form')}>Visitor Form</button>
         <button className={page === 'summary' ? 'active' : ''} onClick={() => go('summary')}>Summary</button>
         <button className={page === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>
-        <span className="nav-note">Local SQLite · data on this computer</span>
+        <span className="nav-note">Live · Supabase (Singapore)</span>
       </nav>
       <main className="main">
         {msg && <div className="msg">{msg}</div>}
 
         {page === 'home' && <>
-          <section className="hero"><div className="hero-text"><h2>Welcome to the Visitor Management System</h2><p>Register visitors, stamp them out, and track who is inside — all from one place. Data is saved locally on this computer (SQLite), no cloud database is used.</p>
+          <section className="hero"><div className="hero-text"><h2>Welcome to the Visitor Management System</h2><p>Register visitors, stamp them out, and track who is inside — all from one place. Data is saved in Supabase (cloud database), so it is available from any device.</p>
             <button className="btn primary" onClick={startCreate}>+ Create Visitor</button>
             <button className="btn" onClick={() => go('form')}>Visitor Form</button></div>
             <div className="hero-art"><span>🏢</span><p>Reception</p></div></section>
@@ -186,7 +238,7 @@ export default function App() {
         {page === 'form' && <>
           <div className="page-head"><h2>Visitor Form</h2><p>Still-inside visitors for today (Pakistan time) only. Older still-inside entries appear in Summary.</p>
             <button className="btn primary" onClick={startCreate}>+ Create Visitor</button></div>
-          {table(insideToday, true)}
+          {table(insideToday, 'form')}
         </>}
 
         {page === 'create' && <>
@@ -194,25 +246,26 @@ export default function App() {
           {notice && <div className="notice">{notice}</div>}
           <form className="form-grid" onSubmit={submitForm}>
             <label className="span3">Date *<input type="date" value={form.visit_date} onChange={e => set('visit_date', e.target.value)} required /></label>
-            <label className="span3">Visitor Category *<select value={form.visitor_category} onChange={e => set('visitor_category', e.target.value)} required><option value="">Select Category</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-            <label className="span3">Visitor Card No.<input value={form.visitor_card_no} onChange={e => set('visitor_card_no', e.target.value)} /></label>
-            <label className="span3">Company Emp Code / CNIC No.<input value={form.emp_code_cnic} onChange={e => set('emp_code_cnic', e.target.value)} onBlur={autoFill} placeholder="e.g. DEMO-001" /></label>
+            <label className="span9">Visitor Category *<select value={form.visitor_category} onChange={e => set('visitor_category', e.target.value)} required><option value="">Select Category</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
+            <label className="span4">Visitor Card No.<input value={form.visitor_card_no} onChange={e => set('visitor_card_no', e.target.value)} /></label>
+            <label className="span8">Company Emp Code / CNIC No.<input value={form.emp_code_cnic} onChange={e => set('emp_code_cnic', e.target.value)} onBlur={autoFill} placeholder="e.g. DEMO-001" /></label>
             <label className="span4">Person Name *<input value={form.person_name} onChange={e => set('person_name', e.target.value)} required /></label>
             <label className="span4">Mobile No.<input value={form.mobile_no} onChange={e => set('mobile_no', e.target.value)} /></label>
             <label className="span4">Coming From / Company Name<input value={form.coming_from} onChange={e => set('coming_from', e.target.value)} /></label>
-            <label className="span12">Reason *<select value={form.reason} onChange={e => set('reason', e.target.value)} required><option value="">Select Reason</option>{REASONS.map(r => <option key={r}>{r}</option>)}<option value="OTHER">Other</option></select></label>
+            <label className="span12 reason-field">Reason *<select value={form.reason} onChange={e => set('reason', e.target.value)} required><option value="">Select Reason</option>{REASONS.map(r => <option key={r}>{r}</option>)}<option value="OTHER">Other</option></select></label>
             {form.reason === 'OTHER' && <label className="span12">Reason (Other) *<input value={form.other_reason} onChange={e => set('other_reason', e.target.value)} placeholder="Type the reason here — this exact text will be saved" /></label>}
-            <label className="span6">Person To Be Contacted<input list="persons" value={form.person_to_contact} onChange={e => set('person_to_contact', e.target.value)} placeholder="Type or pick a previous value" /><datalist id="persons">{suggest.persons.map(p => <option key={p} value={p} />)}</datalist></label>
-            <label className="span6">Department<input list="depts" value={form.department} onChange={e => set('department', e.target.value)} placeholder="Type or pick a previous value" /><datalist id="depts">{suggest.departments.map(d => <option key={d} value={d} />)}</datalist></label>
-            <div className="span12 photo-box"><h3>Take Photo</h3>
+            <label className="span5">Person To Be Contacted<input list="persons" value={form.person_to_contact} onChange={e => set('person_to_contact', e.target.value)} placeholder="Type or pick a previous value" /><datalist id="persons">{suggest.persons.map(p => <option key={p} value={p} />)}</datalist></label>
+            <label className="span5">Department<input list="depts" value={form.department} onChange={e => set('department', e.target.value)} placeholder="Type or pick a previous value" /><datalist id="depts">{suggest.departments.map(d => <option key={d} value={d} />)}</datalist></label>
+            <div className="span2 take-photo-cell"><button type="button" className="btn primary" onClick={() => { photoBoxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); openCamera() }}>Take Photo</button></div>
+            <div className="span12 photo-box" ref={photoBoxRef}><h3>Take Photo</h3>
               {cameraOn ? <><video ref={videoRef} autoPlay playsInline className="video" /><div className="row"><button type="button" className="btn primary" onClick={capturePhoto}>Capture</button><button type="button" className="btn ghost" onClick={stopCamera}>Stop</button></div></>
-                : <div className="row"><button type="button" className="btn" onClick={openCamera}>Open Camera</button><label className="btn ghost file-btn">Upload File<input type="file" accept="image/*" hidden onChange={onPhotoFile} /></label></div>}
+                : <div className="row"><button type="button" className="btn" onClick={openCamera}>Open Camera</button><label className="btn ghost file-btn">Upload File<input type="file" accept="image/*" hidden onChange={onPhotoFile} /></label><span className="hint">Camera starts automatically on this form — allow it once when the browser asks. If it is blocked, use Upload File or Open Camera.</span></div>}
               {photoSrc ? <img src={photoSrc} alt="Visitor" className="preview" /> : <div className="no-photo">No photo yet</div>}
-              <p className="hint">Time In is set automatically and is not shown here. It appears in Visitor Form and Summary as Pakistan time only.</p>
+              <p className="hint">Date above is today's Pakistan date, filled automatically. Time In is set automatically and is not shown here. It appears in Visitor Form and Summary as Pakistan time only.</p>
             </div>
-            <div className="span12 row">
-              <button className="btn primary" type="submit">{editingId ? 'Save Changes' : 'Create Visitor'}</button>
+            <div className="span12 row form-actions">
               <button className="btn ghost" type="button" onClick={() => { stopCamera(); go('form') }}>Cancel</button>
+              <button className="btn primary" type="submit">{editingId ? 'Save Changes' : 'Create Visitor'}</button>
             </div>
           </form>
         </>}
@@ -226,13 +279,15 @@ export default function App() {
             <button className="btn small ghost" onClick={() => { setFrom(''); setTo(''); setQ(''); loadAll('', '', '') }}>Clear</button>
             <input className="search" placeholder="Search name, code, card no., company…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') loadAll() }} />
             <button className="btn small" onClick={() => loadAll()}>Search</button>
+            <button className="btn small primary" onClick={downloadPdf}>Download PDF</button>
+            <button className="btn small primary" onClick={downloadCsv}>Download Excel</button>
           </div>
-          {table(allVisitors, false)}
-          <p className="hint">Edit is available only in Visitor Form, not here — by design.</p>
+          {table(allVisitors, 'summary')}
+          <p className="hint">Edit is available only in Visitor Form, not here — by design. Delete is available here and in Visitor Form. Both downloads cover exactly the rows shown above (your current From/To + search filter).</p>
         </>}
 
         {page === 'dashboard' && dash && <>
-          <div className="page-head"><h2>Dashboard</h2><p>Live counts from the local SQLite database. Today is Pakistan time ({dash.today_pkt}).</p></div>
+          <div className="page-head"><h2>Dashboard</h2><p>Live counts from Supabase. Today is Pakistan time ({dash.today_pkt}).</p></div>
           <section className="kpis">
             <div className="kpi"><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
             <div className="kpi"><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>
@@ -244,7 +299,7 @@ export default function App() {
             <div className="chart-card"><h3>By Visitor Category</h3><Bar items={dash.by_category} /></div></div>
         </>}
       </main>
-      <footer className="footer">Visitor Management System · Local React + SQLite build · Demo data only</footer>
+      <footer className="footer">Visitor Management System · React + Supabase · Demo data only</footer>
     </div>
   )
 }

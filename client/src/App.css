@@ -30,7 +30,11 @@ th{background:#0f172a;color:#fff}.empty{text-align:center;padding:24px;color:#64
 .form-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px}
 .form-grid label{font-size:13px;font-weight:600;color:#334155;display:grid;gap:6px}
 .form-grid input,.form-grid select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
-.span3{grid-column:span 3}.span4{grid-column:span 4}.span6{grid-column:span 6}.span12{grid-column:span 12}
+.btn.ghost.danger{color:#b91c1c;border-color:#fecaca}
+.span2{grid-column:span 2}.span3{grid-column:span 3}.span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}.span8{grid-column:span 8}.span9{grid-column:span 9}.span12{grid-column:span 12}
+.reason-field select{padding:14px 10px;font-size:15px}
+.take-photo-cell{display:flex;align-items:end}.take-photo-cell .btn{width:100%}
+.form-actions{justify-content:space-between}
 .photo-box{border:1px dashed #94a3b8;border-radius:10px;padding:16px}.photo-box h3{margin:0 0 12px}
 .video{width:100%;max-width:520px;border-radius:10px;background:#000}.preview{width:180px;height:180px;object-fit:cover;border-radius:10px;margin-top:12px;display:block}
 .no-photo{color:#64748b;margin-top:12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -41,4 +45,4 @@ th{background:#0f172a;color:#fff}.empty{text-align:center;padding:24px;color:#64
 .bar-track{background:#e2e8f0;border-radius:6px;height:18px;overflow:hidden}.bar-fill{background:#0f766e;height:100%}
 .bar-n{text-align:right;font-weight:700}.hint{color:#64748b;font-size:13px;line-height:1.5}
 .footer{text-align:center;color:#64748b;font-size:13px;padding:16px;border-top:1px solid #e2e8f0}
-@media(max-width:800px){.kpis{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.span3,.span4,.span6{grid-column:span 12}.nav-note{display:none}.bar-row{grid-template-columns:120px 1fr 30px}}
+@media(max-width:800px){.kpis{grid-template-columns:repeat(2,1fr)}.charts{grid-template-columns:1fr}.span2,.span3,.span4,.span5,.span6,.span8,.span9{grid-column:span 12}.nav-note{display:none}.bar-row{grid-template-columns:120px 1fr 30px}}
