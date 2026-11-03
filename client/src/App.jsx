@@ -215,7 +215,6 @@ export default function App() {
         <button className={page === 'form' || page === 'create' ? 'active' : ''} onClick={() => go('form')}>Visitor Form</button>
         <button className={page === 'summary' ? 'active' : ''} onClick={() => go('summary')}>Summary</button>
         <button className={page === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>
-        <span className="nav-note">Live · Supabase (Singapore)</span>
       </nav>
       <main className="main">
         {msg && <div className="msg">{msg}</div>}
