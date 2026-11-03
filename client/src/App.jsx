@@ -277,7 +277,7 @@ export default function App() {
             <div className={`kpi clickable${cardKey === 'todayOut' ? ' selected' : ''}`} onClick={() => openCard('todayOut')}><b>{dash.today_check_out}</b><span>Today Check-Out</span></div>
           </section>}
           {cardKey && <>
-            <div className="page-head"><h2>{CARD_TITLES[cardKey]} — {cardRows.length} visitors</h2>
+            <div className="page-head"><h2>{cardLoading ? `${CARD_TITLES[cardKey]} — Loading…` : `${CARD_TITLES[cardKey]} — ${cardRows.length} visitors`}</h2>
               <button className="btn small ghost" onClick={() => { setCardKey(null); setCardRows([]) }}>Close</button></div>
             {table(cardRows, 'form', cardLoading)}
           </>}
