@@ -293,7 +293,6 @@ export default function App() {
             {loginError && <p className="error">{loginError}</p>}
             <button className="btn primary" disabled={loginBusy}>{loginBusy ? 'Logging in…' : 'Login'}</button>
           </form>
-          <p className="muted">Username aur password Vercel environment variables me set hote hain.</p>
         </div>
       </main>
     </div>
@@ -388,12 +387,17 @@ export default function App() {
         {page === 'dashboard' && dash && <>
           <div className="page-head"><h2>Dashboard</h2></div>
           <section className="kpis">
-            <div className="kpi"><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
-            <div className="kpi"><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>
-            <div className="kpi"><b>{dash.balance}</b><span>Balance (Inside)</span></div>
-            <div className="kpi"><b>{dash.today_check_in}</b><span>Today Check-In</span></div>
-            <div className="kpi"><b>{dash.today_check_out}</b><span>Today Check-Out</span></div>
+            <div className={`kpi clickable${cardKey === 'total' ? ' selected' : ''}`} onClick={() => openCard('total')}><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
+            <div className={`kpi clickable${cardKey === 'out' ? ' selected' : ''}`} onClick={() => openCard('out')}><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>
+            <div className={`kpi clickable${cardKey === 'balance' ? ' selected' : ''}`} onClick={() => openCard('balance')}><b>{dash.balance}</b><span>Balance (Inside)</span></div>
+            <div className={`kpi clickable${cardKey === 'todayIn' ? ' selected' : ''}`} onClick={() => openCard('todayIn')}><b>{dash.today_check_in}</b><span>Today Check-In</span></div>
+            <div className={`kpi clickable${cardKey === 'todayOut' ? ' selected' : ''}`} onClick={() => openCard('todayOut')}><b>{dash.today_check_out}</b><span>Today Check-Out</span></div>
           </section>
+          {cardKey && <>
+            <div className="page-head"><h2>{cardLoading ? `${CARD_TITLES[cardKey]} — Loading…` : `${CARD_TITLES[cardKey]} — ${cardRows.length} visitors`}</h2>
+              <button className="btn small ghost" onClick={() => { setCardKey(null); setCardRows([]) }}>Close</button></div>
+            {table(cardRows, 'form', cardLoading)}
+          </>}
           <div className="charts"><div className="chart-card"><h3>By Department</h3><Bar items={dash.by_department} /></div>
             <div className="chart-card"><h3>By Visitor Category</h3><Bar items={dash.by_category} /></div></div>
         </>}
