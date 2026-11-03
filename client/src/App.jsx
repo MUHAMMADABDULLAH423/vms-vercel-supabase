@@ -248,7 +248,7 @@ export default function App() {
           <section className="hero"><div className="hero-text"><h2>Welcome to the Visitor Management System</h2>
             <button className="btn primary" onClick={startCreate}>+ Create Visitor</button>
             <button className="btn" onClick={() => go('form')}>Visitor Form</button></div>
-            <div className="hero-art"><span>🏢</span><p>Reception</p></div></section>
+            <div className="hero-logo"><img src="/logo.png" alt="Artistic Milliners" /></div></section>
           {dash && <section className="kpis">
             <div className="kpi"><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
             <div className="kpi"><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>

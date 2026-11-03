@@ -11,11 +11,16 @@
 .notice{background:#dbeafe;border:1px solid #93c5fd;padding:10px 14px;border-radius:8px;margin-bottom:14px}
 .page-head{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px}
 .page-head h2{margin:0;flex:1 1 300px}.page-head p{margin:4px 0 0;color:#475569;flex:1 1 100%}
-.hero{background:linear-gradient(120deg,#2b6573,#17456b);color:#fff;border-radius:16px;padding:32px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.hero{background:linear-gradient(120deg,#2b6573,#17456b);color:#fff;border-radius:16px;padding:24px 32px;display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
 .hero-text{flex:1 1 320px}.hero-text h2{margin:0 0 10px;font-size:28px}.hero-text p{opacity:.92;line-height:1.6}
-.hero-art{background:rgba(255,255,255,.15);border-radius:12px;padding:28px;text-align:center;min-width:170px}.hero-art span{font-size:52px}.hero-art p{margin:6px 0 0}
-.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0}
-.kpi{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;text-align:center}.kpi b{display:block;font-size:30px;color:#2b6573}.kpi span{color:#475569;font-size:13px}
+.hero-logo{background:#fff;border-radius:12px;padding:16px;min-width:220px;display:grid;place-items:center}.hero-logo img{width:220px;max-width:100%;height:auto;display:block}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:12px 0}
+.kpi{background:#fff;border:1px solid #e2e8f0;border-top:4px solid #2b6573;border-radius:12px;padding:16px;text-align:center}.kpi b{display:block;font-size:30px;color:#2b6573}.kpi span{color:#475569;font-size:13px}
+.kpis .kpi:nth-child(1){border-top-color:#2b6573;background:#eef6f7}.kpis .kpi:nth-child(1) b{color:#2b6573}
+.kpis .kpi:nth-child(2){border-top-color:#2563eb;background:#eff5ff}.kpis .kpi:nth-child(2) b{color:#2563eb}
+.kpis .kpi:nth-child(3){border-top-color:#d97706;background:#fff7e6}.kpis .kpi:nth-child(3) b{color:#d97706}
+.kpis .kpi:nth-child(4){border-top-color:#16a34a;background:#f0fdf4}.kpis .kpi:nth-child(4) b{color:#16a34a}
+.kpis .kpi:nth-child(5){border-top-color:#7c3aed;background:#f5f3ff}.kpis .kpi:nth-child(5) b{color:#7c3aed}
 .btn{background:#e2e8f0;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;color:#0f172a}
 .btn.primary{background:#17456b;color:#fff}.btn:disabled{opacity:.6;cursor:wait}.btn.ghost{background:#fff;border:1px solid #cbd5e1}.btn.small{padding:6px 10px;font-size:13px}
 .app.busy,.app.busy *{cursor:wait !important}
