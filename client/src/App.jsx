@@ -209,7 +209,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="brand"><div className="brand-inner"><div><h1>Artistic Milliners Pvt Ltd</h1><p>Visitor Management System [VMS]</p></div></div></header>
+      <header className="brand"><div className="brand-inner"><div><h1>Artistic Milliners Pvt Ltd</h1></div></div></header>
       <nav className="nav">
         <button className={page === 'home' ? 'active' : ''} onClick={() => go('home')}>Home</button>
         <button className={page === 'form' || page === 'create' ? 'active' : ''} onClick={() => go('form')}>Visitor Form</button>
