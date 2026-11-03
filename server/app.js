@@ -4,6 +4,7 @@
 // SERVICE ROLE key, so RLS can stay locked down on the table.
 const express = require('express');
 const cors = require('cors');
+const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 
@@ -21,6 +22,49 @@ function createApp(supabase) {
   const app = express();
   app.use(cors());
   app.use(express.json());
+
+  // ---- Single shared login (no per-user accounts) ----
+  // Username/password are NOT in code: set them as Vercel environment
+  // variables VMS_USERNAME and VMS_PASSWORD (Production + Preview),
+  // then redeploy. Changing them = changing the env vars, no code change.
+  // A successful login gets a signed, httpOnly cookie valid for 12 hours;
+  // every other /api route rejects requests without a valid cookie.
+  function sessionSecret() { return process.env.VMS_SESSION_SECRET || process.env.VMS_PASSWORD || ''; }
+  function safeEqual(a, b) { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); }
+  function signSession(username) {
+    const payload = Buffer.from(JSON.stringify({ u: username, exp: Date.now() + 12 * 3600 * 1000 })).toString('base64url');
+    const sig = crypto.createHmac('sha256', sessionSecret()).update(payload).digest('hex');
+    return `${payload}.${sig}`;
+  }
+  function verifySession(req) {
+    try {
+      const cookie = (req.headers.cookie || '').split(';').map(s => s.trim()).find(s => s.startsWith('vms_session='));
+      if (!cookie) return false;
+      const [payload, sig] = cookie.slice('vms_session='.length).split('.');
+      if (!payload || !sig || !safeEqual(crypto.createHmac('sha256', sessionSecret()).update(payload).digest('hex'), sig)) return false;
+      const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+      return data.exp > Date.now();
+    } catch { return false; }
+  }
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/api')) return next();
+    if (['/api/login', '/api/logout', '/api/health'].includes(req.path)) return next();
+    if (verifySession(req)) return next();
+    return res.status(401).json({ error: 'Please log in first.' });
+  });
+  app.post('/api/login', (req, res) => {
+    const envUser = process.env.VMS_USERNAME, envPass = process.env.VMS_PASSWORD;
+    if (!envUser || !envPass) return res.status(503).json({ error: 'Login is not set up yet. Set VMS_USERNAME and VMS_PASSWORD in Vercel environment variables, then redeploy.' });
+    const { username, password } = req.body || {};
+    if (!username || !password || !safeEqual(username, envUser) || !safeEqual(password, envPass)) return res.status(401).json({ error: 'Username ya password ghalat hai.' });
+    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
+    res.setHeader('Set-Cookie', `vms_session=${signSession(username)}; HttpOnly; Path=/; Max-Age=43200; SameSite=Lax${secure}`);
+    res.json({ ok: true });
+  });
+  app.post('/api/logout', (_req, res) => {
+    res.setHeader('Set-Cookie', 'vms_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax');
+    res.json({ ok: true });
+  });
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
   function normaliseReason(body) {

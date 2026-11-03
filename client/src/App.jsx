@@ -39,6 +39,11 @@ export default function App() {
   const [cardKey, setCardKey] = useState(null)
   const [cardRows, setCardRows] = useState([])
   const [cardLoading, setCardLoading] = useState(false)
+  const [auth, setAuth] = useState(null) // null = checking, true = logged in, false = login page
+  const [loginUser, setLoginUser] = useState('')
+  const [loginPass, setLoginPass] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const cameraAttemptRef = useRef(false)
@@ -71,11 +76,27 @@ export default function App() {
   }
 
   useEffect(() => {
+    (async () => { try { const r = await fetch('/api/dashboard'); setAuth(r.status !== 401) } catch { setAuth(false) } })()
+  }, [])
+
+  useEffect(() => {
+    if (auth !== true) return
     loadSuggest()
     if (page === 'form') loadInside()
     if (page === 'summary') loadAll()
     if (page === 'dashboard' || page === 'home') loadDash()
-  }, [page])
+  }, [page, auth])
+
+  const doLogin = async (e) => {
+    e.preventDefault(); setLoginError(''); setLoginBusy(true)
+    try {
+      const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: loginUser, password: loginPass }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) { setLoginError(d.error || 'Login failed.'); return }
+      setLoginPass(''); setAuth(true); loadDash(); loadSuggest()
+    } finally { setLoginBusy(false) }
+  }
+  const doLogout = async () => { await fetch('/api/logout', { method: 'POST' }); setAuth(false); setDash(null) }
 
   const go = (p) => { if (page === 'create' && p !== 'create') stopCamera(); if (p !== 'home') { setCardKey(null); setCardRows([]) } setMsg(''); setNotice(''); setPage(p) }
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -251,6 +272,26 @@ export default function App() {
     </table></div>
   )
 
+  if (auth === null) return <div className="app"><main className="main"><p>Loading…</p></main></div>
+  if (auth === false) return (
+    <div className="app">
+      <header className="brand"><div className="brand-inner"><div><h1>Artistic Milliners Pvt Ltd</h1></div></div></header>
+      <main className="main login-wrap">
+        <div className="login-card">
+          <img src="/logo.png" alt="Artistic Milliners" />
+          <h2>Login</h2>
+          <form onSubmit={doLogin}>
+            <input placeholder="Username" value={loginUser} onChange={e => setLoginUser(e.target.value)} autoFocus />
+            <input type="password" placeholder="Password" value={loginPass} onChange={e => setLoginPass(e.target.value)} />
+            {loginError && <p className="error">{loginError}</p>}
+            <button className="btn primary" disabled={loginBusy}>{loginBusy ? 'Logging in…' : 'Login'}</button>
+          </form>
+          <p className="muted">Username aur password Vercel environment variables me set hote hain.</p>
+        </div>
+      </main>
+    </div>
+  )
+
   return (
     <div className={`app${busy ? ' busy' : ''}`}>
       {busy && <div className="loading-bar">⏳ Working… please wait</div>}
@@ -260,6 +301,7 @@ export default function App() {
         <button className={page === 'form' || page === 'create' ? 'active' : ''} onClick={() => go('form')}>Visitor Form</button>
         <button className={page === 'summary' ? 'active' : ''} onClick={() => go('summary')}>Summary</button>
         <button className={page === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>
+        <button className="nav-logout" onClick={doLogout}>Logout</button>
       </nav>
       <main className="main">
         {msg && <div className="msg">{msg}</div>}
