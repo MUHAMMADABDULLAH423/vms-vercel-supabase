@@ -130,13 +130,15 @@ function createApp(supabase) {
       return count || 0;
     };
     try {
-      const [total, out, todayIn, todayOut] = await Promise.all([
+      // All five reads run in parallel (one round-trip each, not sequential).
+      const [total, out, todayIn, todayOut, groupRes] = await Promise.all([
         countWhere(q => q),
         countWhere(q => q.not('time_out', 'is', null)),
         countWhere(q => q.eq('visit_date', today)),
         countWhere(q => q.eq('visit_date', today).not('time_out', 'is', null)),
+        supabase.from('visitors').select('department,visitor_category'),
       ]);
-      const { data } = await supabase.from('visitors').select('department,visitor_category');
+      const data = groupRes.data;
       const group = (key) => {
         const m = new Map();
         (data || []).forEach(r => { const k = r[key] || '(blank)'; m.set(k, (m.get(k) || 0) + 1); });

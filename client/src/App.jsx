@@ -77,15 +77,21 @@ export default function App() {
   }
 
   useEffect(() => {
-    (async () => { try { const r = await fetch('/api/dashboard'); setAuth(r.status !== 401) } catch { setAuth(false) } })()
+    (async () => { try { const r = await fetch('/api/dashboard'); if (r.ok) setDash(await r.json()); setAuth(r.status !== 401) } catch { setAuth(false) } })()
   }, [])
 
+  // On first load the auth check above already fetched the dashboard, so
+  // the page effect below skips re-fetching it for the same page.
+  const prevPageRef = useRef(null)
   useEffect(() => {
     if (auth !== true) return
     loadSuggest()
     if (page === 'form') loadInside()
     if (page === 'summary') loadAll()
-    if (page === 'dashboard' || page === 'home') loadDash()
+    if (page === 'dashboard' || page === 'home') {
+      if (!(prevPageRef.current === page && dash)) loadDash()
+    }
+    prevPageRef.current = page
   }, [page, auth])
 
   const doLogin = async (e) => {
@@ -380,7 +386,7 @@ export default function App() {
         </>}
 
         {page === 'dashboard' && dash && <>
-          <div className="page-head"><h2>Dashboard</h2><p>Live counts from Supabase. Today is Pakistan time ({dash.today_pkt}).</p></div>
+          <div className="page-head"><h2>Dashboard</h2></div>
           <section className="kpis">
             <div className="kpi"><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
             <div className="kpi"><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>
@@ -404,11 +410,11 @@ export default function App() {
         </div>
       </div></div>}
       {confirmLogout && <div className="modal-overlay"><div className="modal-card">
-        <h3>Logout?</h3>
-        <p>Kya aap logout karna chahte hain? Dobara andar jane ke liye phir se login karna parega.</p>
+        <h3>Log out?</h3>
+        <p>Are you sure you want to log out? You will need to log in again to access the system.</p>
         <div className="row form-actions">
           <button className="btn ghost" type="button" onClick={() => setConfirmLogout(false)}>Cancel</button>
-          <button className="btn primary" type="button" onClick={doLogout}>Logout</button>
+          <button className="btn primary" type="button" onClick={doLogout}>Log out</button>
         </div>
       </div></div>}
     </div>
