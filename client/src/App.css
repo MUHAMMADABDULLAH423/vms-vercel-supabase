@@ -8,7 +8,7 @@
 .nav button:hover,.nav button.active{background:#4a8f88}
 .nav button:active{transform:scale(.97)}
 .nav-logout{margin-left:auto}
-.login-wrap{max-width:420px;margin:48px auto}
+.main.login-wrap{max-width:420px;margin:48px 14px 48px auto}
 .login-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px;text-align:center;box-shadow:0 8px 24px rgba(15,23,42,.08)}
 .login-card img{width:200px;max-width:100%;height:auto}
 .login-card h2{margin:16px 0 8px}
