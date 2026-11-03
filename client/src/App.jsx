@@ -44,6 +44,7 @@ export default function App() {
   const [loginPass, setLoginPass] = useState('')
   const [loginError, setLoginError] = useState('')
   const [loginBusy, setLoginBusy] = useState(false)
+  const [confirmLogout, setConfirmLogout] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const cameraAttemptRef = useRef(false)
@@ -96,7 +97,7 @@ export default function App() {
       setLoginPass(''); setAuth(true); loadDash(); loadSuggest()
     } finally { setLoginBusy(false) }
   }
-  const doLogout = async () => { await fetch('/api/logout', { method: 'POST' }); setAuth(false); setDash(null) }
+  const doLogout = async () => { setConfirmLogout(false); await fetch('/api/logout', { method: 'POST' }); setAuth(false); setDash(null) }
 
   const go = (p) => { if (page === 'create' && p !== 'create') stopCamera(); if (p !== 'home') { setCardKey(null); setCardRows([]) } setMsg(''); setNotice(''); setPage(p) }
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -301,7 +302,7 @@ export default function App() {
         <button className={page === 'form' || page === 'create' ? 'active' : ''} onClick={() => go('form')}>Visitor Form</button>
         <button className={page === 'summary' ? 'active' : ''} onClick={() => go('summary')}>Summary</button>
         <button className={page === 'dashboard' ? 'active' : ''} onClick={() => go('dashboard')}>Dashboard</button>
-        <button className="nav-logout" onClick={doLogout}>Logout</button>
+        <button className="nav-logout" onClick={() => setConfirmLogout(true)}>Logout</button>
       </nav>
       <main className="main">
         {msg && <div className="msg">{msg}</div>}
@@ -400,6 +401,14 @@ export default function App() {
         <div className="row form-actions">
           <button className="btn ghost" type="button" onClick={() => setConfirmCreate(false)}>Cancel</button>
           <button className="btn primary" type="button" onClick={doSubmit}>Confirm &amp; Create</button>
+        </div>
+      </div></div>}
+      {confirmLogout && <div className="modal-overlay"><div className="modal-card">
+        <h3>Logout?</h3>
+        <p>Kya aap logout karna chahte hain? Dobara andar jane ke liye phir se login karna parega.</p>
+        <div className="row form-actions">
+          <button className="btn ghost" type="button" onClick={() => setConfirmLogout(false)}>Cancel</button>
+          <button className="btn primary" type="button" onClick={doLogout}>Logout</button>
         </div>
       </div></div>}
     </div>
