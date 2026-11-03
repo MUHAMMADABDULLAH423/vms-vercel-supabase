@@ -27,8 +27,10 @@ function createApp(supabase) {
   // Username/password are NOT in code: set them as Vercel environment
   // variables VMS_USERNAME and VMS_PASSWORD (Production + Preview),
   // then redeploy. Changing them = changing the env vars, no code change.
-  // A successful login gets a signed, httpOnly cookie valid for 12 hours;
-  // every other /api route rejects requests without a valid cookie.
+  // A successful login gets a signed, httpOnly SESSION cookie (no Max-Age):
+  // the browser deletes it when the browser is fully closed, so reopening
+  // the app asks for username/password again, like the other app. The
+  // signed payload still carries a 12-hour expiry as a backstop.
   function sessionSecret() { return process.env.VMS_SESSION_SECRET || process.env.VMS_PASSWORD || ''; }
   function safeEqual(a, b) { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); }
   function signSession(username) {
@@ -58,7 +60,7 @@ function createApp(supabase) {
     const { username, password } = req.body || {};
     if (!username || !password || !safeEqual(username, envUser) || !safeEqual(password, envPass)) return res.status(401).json({ error: 'Username ya password ghalat hai.' });
     const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `vms_session=${signSession(username)}; HttpOnly; Path=/; Max-Age=43200; SameSite=Lax${secure}`);
+    res.setHeader('Set-Cookie', `vms_session=${signSession(username)}; HttpOnly; Path=/; SameSite=Lax${secure}`);
     res.json({ ok: true });
   });
   app.post('/api/logout', (_req, res) => {
