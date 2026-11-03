@@ -136,15 +136,36 @@ function createApp(supabase) {
         countWhere(q => q.not('time_out', 'is', null)),
         countWhere(q => q.eq('visit_date', today)),
         countWhere(q => q.eq('visit_date', today).not('time_out', 'is', null)),
-        supabase.from('visitors').select('department,visitor_category'),
+        supabase.from('visitors').select('department,visitor_category,time_in,time_out,person_to_contact'),
       ]);
       const data = groupRes.data;
+      // Peak hour: group Time In by Pakistan hour (UTC+5). Only hours with visits.
+      const hourMap = new Map();
+      const durations = [];
+      (data || []).forEach(r => {
+        const inD = r.time_in ? new Date(r.time_in) : null;
+        if (inD && !isNaN(inD)) {
+          const h = (inD.getUTCHours() + 5) % 24;
+          hourMap.set(h, (hourMap.get(h) || 0) + 1);
+        }
+        // Average duration: completed visits only (Time Out set, sane range).
+        if (r.time_in && r.time_out) {
+          const mins = (new Date(r.time_out) - new Date(inD)) / 60000;
+          if (mins > 0 && mins <= 720) durations.push(mins);
+        }
+      });
+      const by_hour = [...hourMap.entries()].sort((a, b) => a[0] - b[0])
+        .map(([h, n]) => ({ name: `${String(h).padStart(2, '0')}:00`, n }));
+      const peakEntry = [...hourMap.entries()].sort((a, b) => b[1] - a[1])[0];
+      const fmtHour12 = (h) => { const ap = h >= 12 ? 'PM' : 'AM'; const hh = h % 12 === 0 ? 12 : h % 12; return `${hh} ${ap}`; };
+      const peak_hour = peakEntry ? { hour: peakEntry[0], label: `${fmtHour12(peakEntry[0])} – ${fmtHour12((peakEntry[0] + 1) % 24)}`, n: peakEntry[1] } : null;
+      const avg_duration_min = durations.length ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : null;
       const group = (key) => {
         const m = new Map();
         (data || []).forEach(r => { const k = r[key] || '(blank)'; m.set(k, (m.get(k) || 0) + 1); });
         return [...m.entries()].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n);
       };
-      res.json({ total_check_in: total, total_check_out: out, balance: total - out, today_check_in: todayIn, today_check_out: todayOut, by_department: group('department'), by_category: group('visitor_category'), today_pkt: today });
+      res.json({ total_check_in: total, total_check_out: out, balance: total - out, today_check_in: todayIn, today_check_out: todayOut, by_department: group('department'), by_category: group('visitor_category'), by_contact: group('person_to_contact').slice(0, 10), by_hour, peak_hour, avg_duration_min, completed_visits: durations.length, today_pkt: today });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 

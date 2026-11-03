@@ -398,8 +398,17 @@ export default function App() {
               <button className="btn small ghost" onClick={() => { setCardKey(null); setCardRows([]) }}>Close</button></div>
             {table(cardRows, 'form', cardLoading)}
           </>}
-          <div className="charts"><div className="chart-card"><h3>By Department</h3><Bar items={dash.by_department} /></div>
-            <div className="chart-card"><h3>By Visitor Category</h3><Bar items={dash.by_category} /></div></div>
+          <div className="charts">
+            <div className="chart-card"><h3>Peak Visiting Hour</h3>
+              {dash.peak_hour ? <><div className="insight-big">{dash.peak_hour.label}</div><p className="insight-note">{dash.peak_hour.n} visitors in this hour</p></> : <p className="insight-note">No visit data yet.</p>}
+              <Bar items={dash.by_hour || []} /></div>
+            <div className="chart-card"><h3>Average Visit Duration</h3>
+              <div className="insight-big">{dash.avg_duration_min != null ? `${dash.avg_duration_min} min` : '—'}</div>
+              <p className="insight-note">Based on {dash.completed_visits || 0} completed visits. Still-inside visitors are not counted.</p></div>
+          </div>
+          <div className="charts"><div className="chart-card"><h3>Top Contact Persons</h3><Bar items={dash.by_contact || []} /></div>
+            <div className="chart-card"><h3>By Department</h3><Bar items={dash.by_department} /></div></div>
+          <div className="charts"><div className="chart-card"><h3>By Visitor Category</h3><Bar items={dash.by_category} /></div></div>
         </>}
       </main>
       {confirmCreate && <div className="modal-overlay"><div className="modal-card">
