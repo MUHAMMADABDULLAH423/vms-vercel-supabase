@@ -245,7 +245,7 @@ export default function App() {
         {msg && <div className="msg">{msg}</div>}
 
         {page === 'home' && <>
-          <section className="hero"><div className="hero-text"><h2>Welcome to the Visitor Management System</h2><p>Register visitors, stamp them out, and track who is inside — all from one place. Data is saved in Supabase (cloud database), so it is available from any device.</p>
+          <section className="hero"><div className="hero-text"><h2>Welcome to the Visitor Management System</h2>
             <button className="btn primary" onClick={startCreate}>+ Create Visitor</button>
             <button className="btn" onClick={() => go('form')}>Visitor Form</button></div>
             <div className="hero-art"><span>🏢</span><p>Reception</p></div></section>
