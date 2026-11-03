@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
 
 const CATEGORIES = ['GENERAL VISITOR', 'VENDOR / SUPPLIER', 'DELIVERY', 'EMPLOYEE / INTER-UNIT', 'CONTRACTOR / SERVICE']
 const REASONS = ['Meeting Visitor (General)', 'Conference / Seminar', 'Goods Delivery', 'Internship Candidate', 'Employee Guest', 'Maintenance or Service', 'Job Interview', 'Third Party Contractor/Service Provider', 'Lunch Delivery (at Reception)', 'Civil Construction Work']
@@ -35,16 +33,19 @@ export default function App() {
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [cameraOn, setCameraOn] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [listLoading, setListLoading] = useState(false)
+  const [confirmCreate, setConfirmCreate] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const cameraAttemptRef = useRef(false)
   const photoBoxRef = useRef(null)
 
-  const loadInside = async () => setInsideToday(await (await fetch('/api/visitors/inside-today')).json())
+  const loadInside = async () => { setListLoading(true); try { setInsideToday(await (await fetch('/api/visitors/inside-today')).json()) } finally { setListLoading(false) } }
   const loadAll = async (f = from, t = to, query = q) => {
     const p = new URLSearchParams()
     if (f) p.set('from', f); if (t) p.set('to', t); if (query) p.set('q', query)
-    setAllVisitors(await (await fetch('/api/visitors/all?' + p.toString())).json())
+    setListLoading(true); try { setAllVisitors(await (await fetch('/api/visitors/all?' + p.toString())).json()) } finally { setListLoading(false) }
   }
   const loadDash = async () => setDash(await (await fetch('/api/dashboard')).json())
   const loadSuggest = async () => setSuggest(await (await fetch('/api/suggestions')).json())
@@ -136,12 +137,12 @@ export default function App() {
   }
   const outStamp = async (id, name) => {
     if (!window.confirm(`Stamp out ${name}?`)) return
-    await fetch(`/api/visitors/${id}/outstamp`, { method: 'POST' })
+    setBusy(true); try { await fetch(`/api/visitors/${id}/outstamp`, { method: 'POST' }) } finally { setBusy(false) }
     setMsg(`${name} stamped out.`); loadInside()
   }
   const deleteVisitor = async (id, name) => {
     if (!window.confirm(`Delete the record for ${name}? This cannot be undone. If it had a photo, the photo file is deleted too.`)) return
-    const res = await fetch(`/api/visitors/${id}`, { method: 'DELETE' })
+    setBusy(true); let res; try { res = await fetch(`/api/visitors/${id}`, { method: 'DELETE' }) } finally { setBusy(false) }
     if (!res.ok) return setMsg('Could not delete that record.')
     setMsg(`Record for ${name} deleted.`)
     if (page === 'summary') loadAll(); else loadInside()
@@ -155,36 +156,51 @@ export default function App() {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `visitors-summary-${pktToday()}.csv`; a.click(); URL.revokeObjectURL(a.href)
     setMsg(`Excel file downloaded: ${allVisitors.length} rows (the current Summary filter).`)
   }
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     if (!allVisitors.length) return setMsg('No rows to download. Apply a filter first, or clear it to download everything.')
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
-    doc.setFontSize(16); doc.text('Visitor Summary', 40, 36)
-    doc.setFontSize(10); doc.text(`Filter: ${from || 'all dates'} to ${to || 'all dates'}  ·  Rows: ${allVisitors.length}  ·  Generated: ${pktToday()} (Pakistan)  ·  Photos are not included in the PDF — use the Excel download for the full list.`, 40, 54)
-    autoTable(doc, {
-      startY: 66,
-      head: [['Date', 'Category', 'Card No.', 'Emp Code / CNIC', 'Person Name', 'Mobile', 'Coming From', 'Reason', 'Person To Contact', 'Department', 'Time In', 'Time Out']],
-      body: allVisitors.map(r => [r.visit_date, r.visitor_category, r.visitor_card_no || '', r.emp_code_cnic || '', r.person_name, r.mobile_no || '', r.coming_from || '', r.reason || '', r.person_to_contact || '', r.department || '', fmtTime(r.time_in), fmtTime(r.time_out)]),
-      styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
-      headStyles: { fillColor: [15, 23, 42] },
-    })
-    doc.save(`visitors-summary-${pktToday()}.pdf`)
-    setMsg(`PDF downloaded: ${allVisitors.length} rows (the current Summary filter).`)
+    setBusy(true)
+    try {
+      // Loaded only when PDF is actually requested, so the first page
+      // load stays light and fast.
+      const { jsPDF } = await import('jspdf')
+      const autoTable = (await import('jspdf-autotable')).default
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
+      doc.setFontSize(16); doc.text('Visitor Summary', 40, 36)
+      doc.setFontSize(10); doc.text(`Filter: ${from || 'all dates'} to ${to || 'all dates'}  ·  Rows: ${allVisitors.length}  ·  Generated: ${pktToday()} (Pakistan)  ·  Photos are not included in the PDF — use the Excel download for the full list.`, 40, 54)
+      autoTable(doc, {
+        startY: 66,
+        head: [['Date', 'Category', 'Card No.', 'Emp Code / CNIC', 'Person Name', 'Mobile', 'Coming From', 'Reason', 'Person To Contact', 'Department', 'Time In', 'Time Out']],
+        body: allVisitors.map(r => [r.visit_date, r.visitor_category, r.visitor_card_no || '', r.emp_code_cnic || '', r.person_name, r.mobile_no || '', r.coming_from || '', r.reason || '', r.person_to_contact || '', r.department || '', fmtTime(r.time_in), fmtTime(r.time_out)]),
+        styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
+        headStyles: { fillColor: [43, 101, 115] },
+      })
+      doc.save(`visitors-summary-${pktToday()}.pdf`)
+      setMsg(`PDF downloaded: ${allVisitors.length} rows (the current Summary filter).`)
+    } finally { setBusy(false) }
   }
-  const submitForm = async (e) => {
+  const submitForm = (e) => {
     e.preventDefault(); setMsg('')
     if (!form.visitor_category) return setMsg('Please select a Visitor Category.')
     if (!form.person_name.trim()) return setMsg('Person Name is required.')
     if (form.reason === 'OTHER' && !form.other_reason.trim()) return setMsg('Please type the reason when Other is selected.')
-    const fd = new FormData()
-    Object.entries(form).forEach(([k, v]) => fd.append(k, v))
-    if (photoFile) fd.append('photo', photoFile)
-    const url = editingId ? `/api/visitors/${editingId}` : '/api/visitors'
-    const res = await fetch(url, { method: editingId ? 'PUT' : 'POST', body: fd })
-    const data = await res.json()
-    if (!res.ok) return setMsg(data.error || 'Could not save. Please check the form.')
-    setMsg(editingId ? 'Row updated.' : 'Visitor created.')
-    stopCamera()
-    await loadSuggest(); go('form')
+    // New entries ask for confirmation first; edits save directly.
+    if (!editingId) { setConfirmCreate(true); return }
+    doSubmit()
+  }
+  const doSubmit = async () => {
+    setConfirmCreate(false); setBusy(true)
+    try {
+      const fd = new FormData()
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v))
+      if (photoFile) fd.append('photo', photoFile)
+      const url = editingId ? `/api/visitors/${editingId}` : '/api/visitors'
+      const res = await fetch(url, { method: editingId ? 'PUT' : 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) return setMsg(data.error || 'Could not save. Please check the form.')
+      setMsg(editingId ? 'Row updated.' : 'Visitor created.')
+      stopCamera()
+      await loadSuggest(); go('form')
+    } finally { setBusy(false) }
   }
 
   const photoSrc = photoPreview || form.previous_photo_path || ''
@@ -202,10 +218,10 @@ export default function App() {
         <div className="bar-track"><div className="bar-fill" style={{ width: `${(i.n / max) * 100}%` }} /></div>
         <span className="bar-n">{i.n}</span></div>))}</div>
   }
-  const table = (rows, actionsMode) => (
+  const table = (rows, actionsMode, loading) => (
     <div className="table-wrap"><table>
       <thead><tr><th>Date</th><th>Category</th><th>Card No.</th><th>Emp Code / CNIC</th><th>Person Name</th><th>Mobile</th><th>Coming From</th><th>Reason</th><th>Person To Contact</th><th>Department</th><th>Time In</th><th>Time Out</th><th>Photo</th>{actionsMode && <th>Action</th>}</tr></thead>
-      <tbody>{rows.length === 0 ? <tr><td colSpan={actionsMode ? 14 : 13} className="empty">No records found.</td></tr> : rows.map(r => (
+      <tbody>{rows.length === 0 ? <tr><td colSpan={actionsMode ? 14 : 13} className="empty">{loading ? 'Loading…' : 'No records found.'}</td></tr> : rows.map(r => (
         <tr key={r.id}><td>{r.visit_date}</td><td>{r.visitor_category}</td><td>{r.visitor_card_no || '—'}</td><td>{r.emp_code_cnic || '—'}</td><td>{r.person_name}</td><td>{r.mobile_no || '—'}</td><td>{r.coming_from || '—'}</td><td>{r.reason || '—'}</td><td>{r.person_to_contact || '—'}</td><td>{r.department || '—'}</td><td>{fmtTime(r.time_in)}</td><td>{fmtTime(r.time_out)}</td>
           <td>{r.photo_path ? <img src={r.photo_path} alt="" className="thumb" /> : '—'}</td>
           {actionsMode && <td className="actions">
@@ -216,7 +232,8 @@ export default function App() {
   )
 
   return (
-    <div className="app">
+    <div className={`app${busy ? ' busy' : ''}`}>
+      {busy && <div className="loading-bar">⏳ Working… please wait</div>}
       <header className="brand"><div className="brand-inner"><div><h1>Artistic Milliners Pvt Ltd</h1></div></div></header>
       <nav className="nav">
         <button className={page === 'home' ? 'active' : ''} onClick={() => go('home')}>Home</button>
@@ -248,7 +265,7 @@ export default function App() {
             <input className="search" placeholder="Filter by anything: name, code, card, company, department, reason, contact, mobile…" value={formQ} onChange={e => setFormQ(e.target.value)} />
             {formQ && <button className="btn small ghost" onClick={() => setFormQ('')}>Clear Filter</button>}
           </div>
-          {table(filteredInside, 'form')}
+          {table(filteredInside, 'form', listLoading)}
         </>}
 
         {page === 'create' && <>
@@ -274,7 +291,7 @@ export default function App() {
             </div>
             <div className="span12 row form-actions">
               <button className="btn ghost" type="button" onClick={() => { stopCamera(); go('form') }}>Cancel</button>
-              <button className="btn primary" type="submit">{editingId ? 'Save Changes' : 'Create Visitor'}</button>
+              <button className="btn primary" type="submit" disabled={busy}>{busy ? 'Saving…' : (editingId ? 'Save Changes' : 'Create Visitor')}</button>
             </div>
           </form>
         </>}
@@ -291,7 +308,7 @@ export default function App() {
             <button className="btn small primary" onClick={downloadPdf}>Download PDF</button>
             <button className="btn small primary" onClick={downloadCsv}>Download Excel</button>
           </div>
-          {table(allVisitors, 'summary')}
+          {table(allVisitors, 'summary', listLoading)}
         </>}
 
         {page === 'dashboard' && dash && <>
@@ -307,7 +324,17 @@ export default function App() {
             <div className="chart-card"><h3>By Visitor Category</h3><Bar items={dash.by_category} /></div></div>
         </>}
       </main>
-      <footer className="footer">Visitor Management System · React + Supabase</footer>
+      {confirmCreate && <div className="modal-overlay"><div className="modal-card">
+        <h3>Confirm new visitor</h3>
+        <p><b>{form.person_name}</b> — {form.visitor_category}<br />
+          Date: {form.visit_date}{form.emp_code_cnic ? <> · Code: {form.emp_code_cnic}</> : null}{form.coming_from ? <> · From: {form.coming_from}</> : null}<br />
+          Reason: {form.reason === 'OTHER' ? form.other_reason : form.reason}</p>
+        <p>Is entry ko save karna hai?</p>
+        <div className="row form-actions">
+          <button className="btn ghost" type="button" onClick={() => setConfirmCreate(false)}>Cancel</button>
+          <button className="btn primary" type="button" onClick={doSubmit}>Confirm &amp; Create</button>
+        </div>
+      </div></div>}
     </div>
   )
 }
