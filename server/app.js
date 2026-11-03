@@ -56,7 +56,7 @@ function createApp(supabase) {
     if (to) query = query.lte('visit_date', to);
     if (q) {
       const like = `%${q.replace(/[%_]/g, '')}%`;
-      query = query.or(`person_name.ilike.${like},emp_code_cnic.ilike.${like},visitor_card_no.ilike.${like},coming_from.ilike.${like}`);
+      query = query.or(`person_name.ilike.${like},emp_code_cnic.ilike.${like},visitor_card_no.ilike.${like},coming_from.ilike.${like},visitor_category.ilike.${like},mobile_no.ilike.${like},reason.ilike.${like},person_to_contact.ilike.${like},department.ilike.${like}`);
     }
     const { data, error } = await query.order('visit_date', { ascending: false }).order('time_in', { ascending: false });
     if (error) return res.status(500).json({ error: error.message });

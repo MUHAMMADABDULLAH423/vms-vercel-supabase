@@ -31,6 +31,7 @@ export default function App() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [q, setQ] = useState('')
+  const [formQ, setFormQ] = useState('')
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [cameraOn, setCameraOn] = useState(false)
@@ -187,6 +188,13 @@ export default function App() {
   }
 
   const photoSrc = photoPreview || form.previous_photo_path || ''
+  // Visitor Form filter: matches ANY field of a row (name, code, card,
+  // company, department, reason, contact, mobile, category, date, times).
+  const filteredInside = insideToday.filter(r => {
+    const query = formQ.trim().toLowerCase(); if (!query) return true
+    const hay = [r.visit_date, r.visitor_category, r.visitor_card_no, r.emp_code_cnic, r.person_name, r.mobile_no, r.coming_from, r.reason, r.person_to_contact, r.department, fmtTime(r.time_in), fmtTime(r.time_out)].join(' ').toLowerCase()
+    return hay.includes(query)
+  })
   const Bar = ({ items }) => {
     const max = Math.max(1, ...items.map(i => i.n))
     return <div className="bars">{items.map(i => (
@@ -234,9 +242,13 @@ export default function App() {
         </>}
 
         {page === 'form' && <>
-          <div className="page-head"><h2>Visitor Form</h2><p>Still-inside visitors for today (Pakistan time) only. Older still-inside entries appear in Summary.</p>
+          <div className="page-head"><h2>Visitor Form</h2>
             <button className="btn primary" onClick={startCreate}>+ Create Visitor</button></div>
-          {table(insideToday, 'form')}
+          <div className="filters">
+            <input className="search" placeholder="Filter by anything: name, code, card, company, department, reason, contact, mobile…" value={formQ} onChange={e => setFormQ(e.target.value)} />
+            {formQ && <button className="btn small ghost" onClick={() => setFormQ('')}>Clear Filter</button>}
+          </div>
+          {table(filteredInside, 'form')}
         </>}
 
         {page === 'create' && <>
@@ -268,19 +280,18 @@ export default function App() {
         </>}
 
         {page === 'summary' && <>
-          <div className="page-head"><h2>Summary</h2><p>All visitors. Use the two dates to filter by visit date (both blank = all).</p></div>
+          <div className="page-head"><h2>Summary</h2></div>
           <div className="filters">
             <label>From Date<input type="date" value={from} onChange={e => setFrom(e.target.value)} /></label>
             <label>To Date<input type="date" value={to} onChange={e => setTo(e.target.value)} /></label>
             <button className="btn small primary" onClick={() => loadAll()}>Apply</button>
             <button className="btn small ghost" onClick={() => { setFrom(''); setTo(''); setQ(''); loadAll('', '', '') }}>Clear</button>
-            <input className="search" placeholder="Search name, code, card no., company…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') loadAll() }} />
+            <input className="search" placeholder="Search by anything: name, code, card, company, department, reason, contact, mobile…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') loadAll() }} />
             <button className="btn small" onClick={() => loadAll()}>Search</button>
             <button className="btn small primary" onClick={downloadPdf}>Download PDF</button>
             <button className="btn small primary" onClick={downloadCsv}>Download Excel</button>
           </div>
           {table(allVisitors, 'summary')}
-          <p className="hint">Edit is available only in Visitor Form, not here — by design. Delete is available here and in Visitor Form. Both downloads cover exactly the rows shown above (your current From/To + search filter).</p>
         </>}
 
         {page === 'dashboard' && dash && <>
