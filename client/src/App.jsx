@@ -209,7 +209,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="brand"><div className="brand-inner"><span className="logo">AM</span><div><h1>Artistic Milliners Pvt Ltd</h1><p>Visitor Management System [VMS]</p></div></div></header>
+      <header className="brand"><div className="brand-inner"><div><h1>Artistic Milliners Pvt Ltd</h1><p>Visitor Management System [VMS]</p></div></div></header>
       <nav className="nav">
         <button className={page === 'home' ? 'active' : ''} onClick={() => go('home')}>Home</button>
         <button className={page === 'form' || page === 'create' ? 'active' : ''} onClick={() => go('form')}>Visitor Form</button>
@@ -232,7 +232,6 @@ export default function App() {
             <div className="kpi"><b>{dash.today_check_in}</b><span>Today Check-In</span></div>
             <div className="kpi"><b>{dash.today_check_out}</b><span>Today Check-Out</span></div>
           </section>}
-          <p className="hint">Demo data only. No real visitor names, CNIC numbers or photos are included.</p>
         </>}
 
         {page === 'form' && <>
@@ -242,13 +241,13 @@ export default function App() {
         </>}
 
         {page === 'create' && <>
-          <div className="page-head"><h2>{editingId ? 'Edit Visitor' : 'Create Visitor'}</h2><p>{editingId ? 'Edit a saved entry. Auto-fill is off in edit mode.' : 'Enter a Company Emp Code / CNIC and move to the next field — a returning visitor’s details will auto-fill.'}</p></div>
+          <div className="page-head"><h2>{editingId ? 'Edit Visitor' : 'Create Visitor'}</h2>{editingId && <p>Edit a saved entry. Auto-fill is off in edit mode.</p>}</div>
           {notice && <div className="notice">{notice}</div>}
           <form className="form-grid" onSubmit={submitForm}>
             <label className="span3">Date *<input type="date" value={form.visit_date} onChange={e => set('visit_date', e.target.value)} required /></label>
             <label className="span9">Visitor Category *<select value={form.visitor_category} onChange={e => set('visitor_category', e.target.value)} required><option value="">Select Category</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
             <label className="span4">Visitor Card No.<input value={form.visitor_card_no} onChange={e => set('visitor_card_no', e.target.value)} /></label>
-            <label className="span8">Company Emp Code / CNIC No.<input value={form.emp_code_cnic} onChange={e => set('emp_code_cnic', e.target.value)} onBlur={autoFill} placeholder="e.g. DEMO-001" /></label>
+            <label className="span8">Company Emp Code / CNIC No.<input value={form.emp_code_cnic} onChange={e => set('emp_code_cnic', e.target.value)} onBlur={autoFill} placeholder="Enter Emp Code / CNIC No." /></label>
             <label className="span4">Person Name *<input value={form.person_name} onChange={e => set('person_name', e.target.value)} required /></label>
             <label className="span4">Mobile No.<input value={form.mobile_no} onChange={e => set('mobile_no', e.target.value)} /></label>
             <label className="span4">Coming From / Company Name<input value={form.coming_from} onChange={e => set('coming_from', e.target.value)} /></label>
@@ -261,7 +260,6 @@ export default function App() {
               {cameraOn ? <><video ref={videoRef} autoPlay playsInline className="video" /><div className="row"><button type="button" className="btn primary" onClick={capturePhoto}>Capture</button><button type="button" className="btn ghost" onClick={stopCamera}>Stop</button></div></>
                 : <div className="row"><button type="button" className="btn" onClick={openCamera}>Open Camera</button><label className="btn ghost file-btn">Upload File<input type="file" accept="image/*" hidden onChange={onPhotoFile} /></label><span className="hint">Camera starts automatically on this form — allow it once when the browser asks. If it is blocked, use Upload File or Open Camera.</span></div>}
               {photoSrc ? <img src={photoSrc} alt="Visitor" className="preview" /> : <div className="no-photo">No photo yet</div>}
-              <p className="hint">Date above is today's Pakistan date, filled automatically. Time In is set automatically and is not shown here. It appears in Visitor Form and Summary as Pakistan time only.</p>
             </div>
             <div className="span12 row form-actions">
               <button className="btn ghost" type="button" onClick={() => { stopCamera(); go('form') }}>Cancel</button>
@@ -299,7 +297,7 @@ export default function App() {
             <div className="chart-card"><h3>By Visitor Category</h3><Bar items={dash.by_category} /></div></div>
         </>}
       </main>
-      <footer className="footer">Visitor Management System · React + Supabase · Demo data only</footer>
+      <footer className="footer">Visitor Management System · React + Supabase</footer>
     </div>
   )
 }

@@ -2,7 +2,6 @@
 .app{min-height:100vh;display:flex;flex-direction:column}
 .brand{background:linear-gradient(90deg,#0b1e3a,#7f1d1d);color:#fff}
 .brand-inner{max-width:1200px;margin:0 auto;padding:14px 20px;display:flex;gap:14px;align-items:center}
-.logo{width:48px;height:48px;border-radius:10px;background:#fff;color:#0b1e3a;display:grid;place-items:center;font-weight:800;font-size:20px}
 .brand h1{margin:0;font-size:20px}.brand p{margin:2px 0 0;opacity:.85;font-size:14px}
 .nav{background:#0f766e;display:flex;gap:4px;padding:0 20px;flex-wrap:wrap;align-items:center}
 .nav button{background:transparent;border:0;color:#fff;padding:13px 18px;cursor:pointer;font-size:15px;font-weight:600}
