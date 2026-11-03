@@ -36,6 +36,9 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [listLoading, setListLoading] = useState(false)
   const [confirmCreate, setConfirmCreate] = useState(false)
+  const [cardKey, setCardKey] = useState(null)
+  const [cardRows, setCardRows] = useState([])
+  const [cardLoading, setCardLoading] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const cameraAttemptRef = useRef(false)
@@ -50,6 +53,23 @@ export default function App() {
   const loadDash = async () => setDash(await (await fetch('/api/dashboard')).json())
   const loadSuggest = async () => setSuggest(await (await fetch('/api/suggestions')).json())
 
+  // Dynamic KPI cards (Home): clicking a card fetches all visitors and
+  // shows only that card's slice below the cards.
+  const CARD_TITLES = { total: 'Total Check-In', out: 'Total Check-Out', balance: 'Balance (Inside)', todayIn: 'Today Check-In', todayOut: 'Today Check-Out' }
+  const openCard = async (key) => {
+    setCardKey(key); setCardLoading(true)
+    try {
+      const rows = await (await fetch('/api/visitors/all')).json()
+      const today = pktToday()
+      const filtered = key === 'total' ? rows
+        : key === 'out' ? rows.filter(r => r.time_out)
+        : key === 'balance' ? rows.filter(r => !r.time_out)
+        : key === 'todayIn' ? rows.filter(r => r.visit_date === today)
+        : rows.filter(r => r.visit_date === today && r.time_out)
+      setCardRows(filtered)
+    } finally { setCardLoading(false) }
+  }
+
   useEffect(() => {
     loadSuggest()
     if (page === 'form') loadInside()
@@ -57,7 +77,7 @@ export default function App() {
     if (page === 'dashboard' || page === 'home') loadDash()
   }, [page])
 
-  const go = (p) => { if (page === 'create' && p !== 'create') stopCamera(); setMsg(''); setNotice(''); setPage(p) }
+  const go = (p) => { if (page === 'create' && p !== 'create') stopCamera(); if (p !== 'home') { setCardKey(null); setCardRows([]) } setMsg(''); setNotice(''); setPage(p) }
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const stopCamera = () => {
@@ -138,14 +158,14 @@ export default function App() {
   const outStamp = async (id, name) => {
     if (!window.confirm(`Stamp out ${name}?`)) return
     setBusy(true); try { await fetch(`/api/visitors/${id}/outstamp`, { method: 'POST' }) } finally { setBusy(false) }
-    setMsg(`${name} stamped out.`); loadInside()
+    setMsg(`${name} stamped out.`); loadInside(); if (cardKey) openCard(cardKey)
   }
   const deleteVisitor = async (id, name) => {
     if (!window.confirm(`Delete the record for ${name}? This cannot be undone. If it had a photo, the photo file is deleted too.`)) return
     setBusy(true); let res; try { res = await fetch(`/api/visitors/${id}`, { method: 'DELETE' }) } finally { setBusy(false) }
     if (!res.ok) return setMsg('Could not delete that record.')
     setMsg(`Record for ${name} deleted.`)
-    if (page === 'summary') loadAll(); else loadInside()
+    if (page === 'summary') loadAll(); else loadInside(); if (cardKey) openCard(cardKey)
   }
   const downloadCsv = () => {
     if (!allVisitors.length) return setMsg('No rows to download. Apply a filter first, or clear it to download everything.')
@@ -250,12 +270,17 @@ export default function App() {
             <button className="btn" onClick={() => go('form')}>Visitor Form</button></div>
             <div className="hero-logo"><img src="/logo.png" alt="Artistic Milliners" /></div></section>
           {dash && <section className="kpis">
-            <div className="kpi"><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
-            <div className="kpi"><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>
-            <div className="kpi"><b>{dash.balance}</b><span>Balance (Inside)</span></div>
-            <div className="kpi"><b>{dash.today_check_in}</b><span>Today Check-In</span></div>
-            <div className="kpi"><b>{dash.today_check_out}</b><span>Today Check-Out</span></div>
+            <div className={`kpi clickable${cardKey === 'total' ? ' selected' : ''}`} onClick={() => openCard('total')}><b>{dash.total_check_in}</b><span>Total Check-In</span></div>
+            <div className={`kpi clickable${cardKey === 'out' ? ' selected' : ''}`} onClick={() => openCard('out')}><b>{dash.total_check_out}</b><span>Total Check-Out</span></div>
+            <div className={`kpi clickable${cardKey === 'balance' ? ' selected' : ''}`} onClick={() => openCard('balance')}><b>{dash.balance}</b><span>Balance (Inside)</span></div>
+            <div className={`kpi clickable${cardKey === 'todayIn' ? ' selected' : ''}`} onClick={() => openCard('todayIn')}><b>{dash.today_check_in}</b><span>Today Check-In</span></div>
+            <div className={`kpi clickable${cardKey === 'todayOut' ? ' selected' : ''}`} onClick={() => openCard('todayOut')}><b>{dash.today_check_out}</b><span>Today Check-Out</span></div>
           </section>}
+          {cardKey && <>
+            <div className="page-head"><h2>{CARD_TITLES[cardKey]} — {cardRows.length} visitors</h2>
+              <button className="btn small ghost" onClick={() => { setCardKey(null); setCardRows([]) }}>Close</button></div>
+            {table(cardRows, 'form', cardLoading)}
+          </>}
         </>}
 
         {page === 'form' && <>

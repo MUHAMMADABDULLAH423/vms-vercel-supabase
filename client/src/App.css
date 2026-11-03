@@ -16,6 +16,7 @@
 .hero-logo{background:#fff;border-radius:12px;padding:16px;min-width:220px;display:grid;place-items:center}.hero-logo img{width:220px;max-width:100%;height:auto;display:block}
 .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:12px 0}
 .kpi{background:#fff;border:1px solid #e2e8f0;border-top:4px solid #2b6573;border-radius:12px;padding:16px;text-align:center}.kpi b{display:block;font-size:30px;color:#2b6573}.kpi span{color:#475569;font-size:13px}
+.kpi.clickable{cursor:pointer}.kpi.clickable:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(15,23,42,.12)}.kpi.selected{outline:2px solid #17456b;outline-offset:1px}
 .kpis .kpi:nth-child(1){border-top-color:#2b6573;background:#eef6f7}.kpis .kpi:nth-child(1) b{color:#2b6573}
 .kpis .kpi:nth-child(2){border-top-color:#2563eb;background:#eff5ff}.kpis .kpi:nth-child(2) b{color:#2563eb}
 .kpis .kpi:nth-child(3){border-top-color:#d97706;background:#fff7e6}.kpis .kpi:nth-child(3) b{color:#d97706}
