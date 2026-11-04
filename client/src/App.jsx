@@ -229,13 +229,11 @@ export default function App() {
           : 'VISITOR SUMMARY'
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
       const pageW = doc.internal.pageSize.getWidth()
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text('Artistic Milliners Pvt Ltd', pageW / 2, 30, { align: 'center' })
-      doc.setFontSize(18); doc.text(heading, pageW / 2, 52, { align: 'center' })
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
-      doc.text(`Filter: ${from || 'all dates'} to ${to || 'all dates'}  ·  Rows: ${allVisitors.length}  ·  Generated: ${fmtPdfDate(pktToday())} (Pakistan)`, pageW / 2, 70, { align: 'center' })
-      doc.setFontSize(9); doc.text('Photos are not included in the PDF — use the Excel download for the full list.', pageW / 2, 84, { align: 'center' })
+      // Header is only the report heading — no company line, no filter /
+      // generated / photos lines above the table.
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(heading, pageW / 2, 40, { align: 'center' })
       autoTable(doc, {
-        startY: 96,
+        startY: 54,
         head: [['Date', 'Category', 'Card No.', 'Emp Code / CNIC', 'Person Name', 'Mobile', 'Coming From', 'Reason', 'Person To Contact', 'Department', 'Time In', 'Time Out']],
         body: allVisitors.map(r => [r.visit_date, r.visitor_category, r.visitor_card_no || '', r.emp_code_cnic || '', r.person_name, r.mobile_no || '', r.coming_from || '', r.reason || '', r.person_to_contact || '', r.department || '', fmtTime(r.time_in), fmtTime(r.time_out)]),
         styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
@@ -243,7 +241,6 @@ export default function App() {
         alternateRowStyles: { fillColor: [245, 248, 250] },
         didDrawPage: (data) => {
           doc.setFontSize(8); doc.setTextColor(100)
-          doc.text('Artistic Milliners Pvt Ltd', 40, doc.internal.pageSize.getHeight() - 20)
           doc.text(`Page ${data.pageNumber}`, pageW - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' })
           doc.setTextColor(0)
         },
