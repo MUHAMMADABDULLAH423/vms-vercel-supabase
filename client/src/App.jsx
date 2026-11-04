@@ -212,15 +212,41 @@ export default function App() {
       // load stays light and fast.
       const { jsPDF } = await import('jspdf')
       const autoTable = (await import('jspdf-autotable')).default
+      const fmtPdfDate = (d) => {
+        const [y, m, dd] = (d || '').split('-')
+        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+        return y && m && dd ? `${dd}-${months[Number(m) - 1]}-${y}` : (d || '')
+      }
+      // Heading shows the report's own date(s): the chosen From/To filter
+      // when set, otherwise the dates actually present in the rows.
+      const rowDates = allVisitors.map(r => r.visit_date).filter(Boolean).sort()
+      const heading = from && to
+        ? (from === to ? `VISITOR SUMMARY OF ${fmtPdfDate(from)}` : `VISITOR SUMMARY OF ${fmtPdfDate(from)} TO ${fmtPdfDate(to)}`)
+        : from ? `VISITOR SUMMARY FROM ${fmtPdfDate(from)}`
+        : to ? `VISITOR SUMMARY UP TO ${fmtPdfDate(to)}`
+        : rowDates.length
+          ? (rowDates[0] === rowDates[rowDates.length - 1] ? `VISITOR SUMMARY OF ${fmtPdfDate(rowDates[0])}` : `VISITOR SUMMARY OF ${fmtPdfDate(rowDates[0])} TO ${fmtPdfDate(rowDates[rowDates.length - 1])}`)
+          : 'VISITOR SUMMARY'
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' })
-      doc.setFontSize(16); doc.text('Visitor Summary', 40, 36)
-      doc.setFontSize(10); doc.text(`Filter: ${from || 'all dates'} to ${to || 'all dates'}  ·  Rows: ${allVisitors.length}  ·  Generated: ${pktToday()} (Pakistan)  ·  Photos are not included in the PDF — use the Excel download for the full list.`, 40, 54)
+      const pageW = doc.internal.pageSize.getWidth()
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.text('Artistic Milliners Pvt Ltd', pageW / 2, 30, { align: 'center' })
+      doc.setFontSize(18); doc.text(heading, pageW / 2, 52, { align: 'center' })
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
+      doc.text(`Filter: ${from || 'all dates'} to ${to || 'all dates'}  ·  Rows: ${allVisitors.length}  ·  Generated: ${fmtPdfDate(pktToday())} (Pakistan)`, pageW / 2, 70, { align: 'center' })
+      doc.setFontSize(9); doc.text('Photos are not included in the PDF — use the Excel download for the full list.', pageW / 2, 84, { align: 'center' })
       autoTable(doc, {
-        startY: 66,
+        startY: 96,
         head: [['Date', 'Category', 'Card No.', 'Emp Code / CNIC', 'Person Name', 'Mobile', 'Coming From', 'Reason', 'Person To Contact', 'Department', 'Time In', 'Time Out']],
         body: allVisitors.map(r => [r.visit_date, r.visitor_category, r.visitor_card_no || '', r.emp_code_cnic || '', r.person_name, r.mobile_no || '', r.coming_from || '', r.reason || '', r.person_to_contact || '', r.department || '', fmtTime(r.time_in), fmtTime(r.time_out)]),
         styles: { fontSize: 8, cellPadding: 4, overflow: 'linebreak' },
-        headStyles: { fillColor: [43, 101, 115] },
+        headStyles: { fillColor: [43, 101, 115], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [245, 248, 250] },
+        didDrawPage: (data) => {
+          doc.setFontSize(8); doc.setTextColor(100)
+          doc.text('Artistic Milliners Pvt Ltd', 40, doc.internal.pageSize.getHeight() - 20)
+          doc.text(`Page ${data.pageNumber}`, pageW - 40, doc.internal.pageSize.getHeight() - 20, { align: 'right' })
+          doc.setTextColor(0)
+        },
       })
       doc.save(`visitors-summary-${pktToday()}.pdf`)
       setMsg(`PDF downloaded: ${allVisitors.length} rows (the current Summary filter).`)
