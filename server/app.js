@@ -231,6 +231,15 @@ function createApp(supabase) {
     res.json(data);
   });
 
+  // One click stamps out EVERY visitor currently inside (time_out still
+  // empty), all with the same current time. Already-stamped-out rows are
+  // untouched, so pressing it twice changes nothing the second time.
+  app.post('/api/visitors/outstamp-all', async (req, res) => {
+    const { data, error } = await supabase.from('visitors').update({ time_out: nowIso() }).is('time_out', null).select('id');
+    if (error) return res.status(500).json({ error: error.message });
+    res.json({ stamped_out: (data || []).length });
+  });
+
   app.delete('/api/visitors/:id', async (req, res) => {
     const { data: row } = await supabase.from('visitors').select('photo_path').eq('id', req.params.id).maybeSingle();
     const { error } = await supabase.from('visitors').delete().eq('id', req.params.id);

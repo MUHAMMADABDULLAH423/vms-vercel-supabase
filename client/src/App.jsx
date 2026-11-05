@@ -36,6 +36,7 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [listLoading, setListLoading] = useState(false)
   const [confirmCreate, setConfirmCreate] = useState(false)
+  const [confirmOutAll, setConfirmOutAll] = useState(false)
   const [cardKey, setCardKey] = useState(null)
   const [cardRows, setCardRows] = useState([])
   const [cardLoading, setCardLoading] = useState(false)
@@ -187,6 +188,15 @@ export default function App() {
     if (!window.confirm(`Stamp out ${name}?`)) return
     setBusy(true); try { await fetch(`/api/visitors/${id}/outstamp`, { method: 'POST' }) } finally { setBusy(false) }
     setMsg(`${name} stamped out.`); loadInside(); if (cardKey) openCard(cardKey)
+  }
+  const outStampAll = async () => {
+    setConfirmOutAll(false)
+    if (!insideToday.length) return setMsg('No visitors are currently inside.')
+    setBusy(true); let res; try { res = await fetch('/api/visitors/outstamp-all', { method: 'POST' }) } finally { setBusy(false) }
+    if (!res.ok) return setMsg('Could not stamp out all visitors. Please try again.')
+    const data = await res.json().catch(() => ({}))
+    setMsg(`${data.stamped_out ?? insideToday.length} visitors stamped out.`)
+    loadInside(); if (cardKey) openCard(cardKey)
   }
   const deleteVisitor = async (id, name) => {
     if (!window.confirm(`Delete the record for ${name}? This cannot be undone. If it had a photo, the photo file is deleted too.`)) return
@@ -356,7 +366,8 @@ export default function App() {
 
         {page === 'form' && <>
           <div className="page-head"><h2>Visitor Form</h2>
-            <button className="btn primary" onClick={startCreate}>+ Create Visitor</button></div>
+            <div className="row"><button className="btn" onClick={() => setConfirmOutAll(true)} disabled={!insideToday.length || busy}>OutStamp All</button>
+            <button className="btn primary" onClick={startCreate}>+ Create Visitor</button></div></div>
           <div className="filters">
             <input className="search" placeholder="Filter by anything: name, code, card, company, department, reason, contact, mobile…" value={formQ} onChange={e => setFormQ(e.target.value)} />
             {formQ && <button className="btn small ghost" onClick={() => setFormQ('')}>Clear Filter</button>}
@@ -451,6 +462,14 @@ export default function App() {
         <div className="row form-actions">
           <button className="btn ghost" type="button" onClick={() => setConfirmLogout(false)}>Cancel</button>
           <button className="btn primary" type="button" onClick={doLogout}>Log out</button>
+        </div>
+      </div></div>}
+      {confirmOutAll && <div className="modal-overlay"><div className="modal-card">
+        <h3>Stamp out all visitors?</h3>
+        <p>This will stamp out all <b>{insideToday.length}</b> visitors currently inside, at the current time. Already stamped-out visitors are not affected. This cannot be undone.</p>
+        <div className="row form-actions">
+          <button className="btn ghost" type="button" onClick={() => setConfirmOutAll(false)}>Cancel</button>
+          <button className="btn primary" type="button" onClick={outStampAll}>Stamp Out All</button>
         </div>
       </div></div>}
     </div>
