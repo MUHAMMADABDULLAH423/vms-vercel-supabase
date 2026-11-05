@@ -366,7 +366,7 @@ export default function App() {
 
         {page === 'form' && <>
           <div className="page-head"><h2>Visitor Form</h2>
-            <div className="row"><button className="btn" onClick={() => setConfirmOutAll(true)} disabled={!insideToday.length || busy}>OutStamp All</button>
+            <div className="row"><button className="btn danger" onClick={() => setConfirmOutAll(true)} disabled={!insideToday.length || busy}>OutStamp All</button>
             <button className="btn primary" onClick={startCreate}>+ Create Visitor</button></div></div>
           <div className="filters">
             <input className="search" placeholder="Filter by anything: name, code, card, company, department, reason, contact, mobile…" value={formQ} onChange={e => setFormQ(e.target.value)} />

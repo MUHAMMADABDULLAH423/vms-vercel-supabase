@@ -37,7 +37,7 @@
 .btn{background:#e2e8f0;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;font-weight:600;color:#0f172a;transition:transform .15s ease,box-shadow .15s ease,background .18s ease,filter .18s ease}
 .btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(15,23,42,.15);filter:brightness(1.03)}
 .btn:active:not(:disabled){transform:translateY(0) scale(.98);box-shadow:none}
-.btn.primary{background:#17456b;color:#fff}.btn:disabled{opacity:.6;cursor:wait}.btn.ghost{background:#fff;border:1px solid #cbd5e1}.btn.small{padding:6px 10px;font-size:13px}
+.btn.primary{background:#17456b;color:#fff}.btn.danger{background:#b91c1c;color:#fff}.btn:disabled{opacity:.6;cursor:wait}.btn.ghost{background:#fff;border:1px solid #cbd5e1}.btn.small{padding:6px 10px;font-size:13px}
 .app.busy,.app.busy *{cursor:wait !important}
 .loading-bar{position:fixed;top:0;left:0;right:0;z-index:100;background:#17456b;color:#fff;text-align:center;padding:8px;font-weight:600;font-size:14px}
 .modal-overlay{position:fixed;inset:0;z-index:90;background:rgba(15,23,42,.5);display:grid;place-items:center;padding:16px}
